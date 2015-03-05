@@ -50,6 +50,19 @@ namespace Microsoft.AspNet.Mvc.ModelBinding
             OperationBindingContext = bindingContext.OperationBindingContext;
         }
 
+        public static ModelBindingContext GetModelBindingContext(
+            ModelMetadata metadata,
+            string binderModelName,
+            BindingSource bindingSource)
+        {
+            return new ModelBindingContext()
+            {
+                ModelMetadata = metadata,
+                BindingSource = bindingSource,
+                BinderModelName = binderModelName ?? metadata.PropertyName,
+            };
+        }
+
         /// <summary>
         /// Represents the <see cref="OperationBindingContext"/> associated with this context.
         /// </summary>
@@ -117,6 +130,14 @@ namespace Microsoft.AspNet.Mvc.ModelBinding
                 return ModelMetadata.ModelType;
             }
         }
+
+        /// <summary>
+        /// Gets or sets a value which represents the model name which is to be used for model binding 
+        /// <see cref="Model"/>.
+        /// </summary>
+        public string BinderModelName { get; set; }
+
+        public BindingSource BindingSource { get; set; }
 
         /// <summary>
         /// Gets or sets a value that indicates whether the binder should use an empty prefix to look up
