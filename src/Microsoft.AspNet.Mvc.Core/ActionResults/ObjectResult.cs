@@ -38,6 +38,11 @@ namespace Microsoft.AspNet.Mvc
         /// </summary>
         public int? StatusCode { get; set; }
 
+        /// <summary>
+        /// Gets or sets the flag to exclude formatters that match only on the object type.
+        /// </summary>
+        public bool? ExcludeMatchOnTypeOnly { get; set; }
+
         public override async Task ExecuteResultAsync(ActionContext context)
         {
             // See if the list of content types added to this object result is valid.
@@ -136,7 +141,8 @@ namespace Microsoft.AspNet.Mvc
 
                     // This would be the case when no formatter could write the type base on the
                     // accept headers and the request content type. Fallback on type based match.
-                    if (selectedFormatter == null)
+                    var excludeMatchOnTypeOnly = ExcludeMatchOnTypeOnly ?? options.ExcludeMatchOnTypeOnly;
+                    if (selectedFormatter == null && !excludeMatchOnTypeOnly)
                     {
                         foreach (var formatter in formatters)
                         {

@@ -139,9 +139,15 @@ namespace Microsoft.AspNet.Mvc
 
         /// <summary>
         /// Gets or sets the flag which causes content negotiation to ignore Accept header 
-        /// when it contains the media type */*. <see langword="false"/> by default.
+        /// when it contains the media type */*. <c>false</c>c> by default.
         /// </summary>
         public bool RespectBrowserAcceptHeader { get; set; }
+
+        /// <summary>
+        /// Gets or sets the flag to exclude formatters that match only on the object type.
+        /// <c>false</c> by default.
+        /// </summary>
+        public bool ExcludeMatchOnTypeOnly { get; set; }
 
         /// <summary>
         /// Gets a Dictionary of CacheProfile Names, <see cref="CacheProfile"/> which are pre-defined settings for

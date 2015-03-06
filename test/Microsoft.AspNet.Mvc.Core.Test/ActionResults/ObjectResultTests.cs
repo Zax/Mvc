@@ -5,6 +5,7 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Net;
 using System.Text;
 using System.Threading.Tasks;
 using Microsoft.AspNet.Http;
@@ -560,6 +561,8 @@ namespace Microsoft.AspNet.Mvc.Core.Test.ActionResults
             string expectedResponseContentType)
         {
             // Arrange
+            var mvcOptions = new MvcOptions();
+            mvcOptions.RespectBrowserAcceptHeader = true;
             var objectResult = new ObjectResult(new Person() { Name = "John" });
             var outputFormatters = new IOutputFormatter[] {
                 new HttpNoContentOutputFormatter(),
@@ -573,7 +576,7 @@ namespace Microsoft.AspNet.Mvc.Core.Test.ActionResults
                                     outputFormatters,
                                     response.Object,
                                     requestAcceptHeader: acceptHeader,
-                                    respectBrowserAcceptHeader: true);
+                                    mvcOptions: mvcOptions);
 
             // Act
             await objectResult.ExecuteResultAsync(actionContext);
@@ -593,6 +596,8 @@ namespace Microsoft.AspNet.Mvc.Core.Test.ActionResults
             bool respectBrowserAcceptHeader)
         {
             // Arrange
+            var mvcOptions = new MvcOptions();
+            mvcOptions.RespectBrowserAcceptHeader = respectBrowserAcceptHeader;
             var objectResult = new ObjectResult(new Person() { Name = "John" });
             objectResult.ContentTypes.Add(MediaTypeHeaderValue.Parse("application/xml"));
             objectResult.ContentTypes.Add(MediaTypeHeaderValue.Parse("application/json"));
@@ -608,7 +613,7 @@ namespace Microsoft.AspNet.Mvc.Core.Test.ActionResults
                                     outputFormatters,
                                     response.Object,
                                     acceptHeader,
-                                    respectBrowserAcceptHeader: respectBrowserAcceptHeader);
+                                    mvcOptions: mvcOptions);
 
             // Act
             await objectResult.ExecuteResultAsync(actionContext);
@@ -643,12 +648,113 @@ namespace Microsoft.AspNet.Mvc.Core.Test.ActionResults
             Assert.Equal(expectedMessage, exception.Message);
         }
 
+        [Fact]
+        public async Task StringReturnType_Ignores_ExcludeMatchOnTypeOnly()
+        {
+            // Arrange
+            var mvcOptions = new MvcOptions();
+            mvcOptions.ExcludeMatchOnTypeOnly = true;
+            var expectedData = "Hello World!";
+            var objectResult = new ObjectResult(expectedData);
+            var outputFormatters = new IOutputFormatter[] {
+                new HttpNoContentOutputFormatter(),
+                new StringOutputFormatter(),
+                new JsonOutputFormatter(),
+                new XmlDataContractSerializerOutputFormatter()
+            };
+            var response = new Mock<HttpResponse>();
+            var responseStream = new MemoryStream();
+            response.SetupGet(r => r.Body).Returns(responseStream);
+
+            var actionContext = CreateMockActionContext(
+                                    outputFormatters,
+                                    response.Object,
+                                    requestAcceptHeader: "application/non-existing",
+                                    requestContentType: "application/non-existing",
+                                    mvcOptions: mvcOptions);
+
+            // Act
+            await objectResult.ExecuteResultAsync(actionContext);
+
+            // Assert
+            response.VerifySet(r => r.ContentType = "text/plain; charset=utf-8");
+            responseStream.Position = 0;
+            var actual = new StreamReader(responseStream).ReadToEnd();
+            Assert.Equal(expectedData, actual);
+        }
+
+        [Fact]
+        public async Task ObjectResult_ExcludesMatchOnTypeOnly_BasedOnMvcOptions()
+        {
+            // Arrange
+            var mvcOptions = new MvcOptions();
+            mvcOptions.ExcludeMatchOnTypeOnly = true;
+            var objectResult = new ObjectResult(new Person() { Name = "John" });
+            var outputFormatters = new IOutputFormatter[] {
+                new HttpNoContentOutputFormatter(),
+                new StringOutputFormatter(),
+                new JsonOutputFormatter(),
+                new XmlDataContractSerializerOutputFormatter()
+            };
+            var response = new Mock<HttpResponse>();
+            var responseStream = new MemoryStream();
+            response.SetupGet(r => r.Body).Returns(responseStream);
+
+            var actionContext = CreateMockActionContext(
+                                    outputFormatters,
+                                    response.Object,
+                                    requestAcceptHeader: "application/non-existing",
+                                    requestContentType: "application/non-existing",
+                                    mvcOptions: mvcOptions);
+
+            // Act
+            await objectResult.ExecuteResultAsync(actionContext);
+
+            // Assert
+            response.VerifySet(x => x.ContentType = It.IsAny<string>(), Times.Never());
+            Assert.Equal(0, responseStream.Length);
+        }
+
+        [Fact]
+        public async Task ObjectResult_OverridesMvcOptions_AndDoesNot_ExcludeMatchOnTypeOnly()
+        {
+            // Arrange
+            var mvcOptions = new MvcOptions();
+            mvcOptions.ExcludeMatchOnTypeOnly = true;
+            var objectResult = new ObjectResult(new Person() { Name = "John" });
+            objectResult.ExcludeMatchOnTypeOnly = false;
+            var outputFormatters = new IOutputFormatter[] {
+                new HttpNoContentOutputFormatter(),
+                new StringOutputFormatter(),
+                new JsonOutputFormatter()
+            };
+            var response = new Mock<HttpResponse>();
+            var responseStream = new MemoryStream();
+            response.SetupGet(r => r.Body).Returns(responseStream);
+            var expectedData = "{\"Name\":\"John\"}";
+
+            var actionContext = CreateMockActionContext(
+                                    outputFormatters,
+                                    response.Object,
+                                    requestAcceptHeader: "application/non-existing",
+                                    mvcOptions: mvcOptions);
+
+            // Act
+            await objectResult.ExecuteResultAsync(actionContext);
+
+            // Assert
+            response.VerifySet(r => r.ContentType = "application/json; charset=utf-8");
+            responseStream.Position = 0;
+            var actual = new StreamReader(responseStream).ReadToEnd();
+            Assert.Equal(expectedData, actual); 
+        }
+
         private static ActionContext CreateMockActionContext(
                                                              HttpResponse response = null,
                                                              string requestAcceptHeader = "application/*",
                                                              string requestContentType = "application/json",
                                                              string requestAcceptCharsetHeader = "",
-                                                             bool respectBrowserAcceptHeader = false)
+                                                             MvcOptions options = null)
         {
             var formatters = new IOutputFormatter[] { new StringOutputFormatter(), new JsonOutputFormatter() };
 
@@ -658,7 +764,7 @@ namespace Microsoft.AspNet.Mvc.Core.Test.ActionResults
                                             requestAcceptHeader: requestAcceptHeader,
                                             requestContentType: requestContentType,
                                             requestAcceptCharsetHeader: requestAcceptCharsetHeader,
-                                            respectBrowserAcceptHeader: respectBrowserAcceptHeader);
+                                            mvcOptions: options);
         }
 
         private static ActionContext CreateMockActionContext(
@@ -667,7 +773,7 @@ namespace Microsoft.AspNet.Mvc.Core.Test.ActionResults
                                                              string requestAcceptHeader = "application/*",
                                                              string requestContentType = "application/json",
                                                              string requestAcceptCharsetHeader = "",
-                                                             bool respectBrowserAcceptHeader = false)
+                                                             MvcOptions mvcOptions = null)
         {
             var httpContext = new Mock<HttpContext>();
             if (response != null)
@@ -689,14 +795,13 @@ namespace Microsoft.AspNet.Mvc.Core.Test.ActionResults
             httpContext.Setup(o => o.RequestServices.GetService(typeof(IOutputFormattersProvider)))
                        .Returns(new TestOutputFormatterProvider(outputFormatters));
 
-            var options = new Mock<IOptions<MvcOptions>>();
-            options.SetupGet(o => o.Options)
-                       .Returns(new MvcOptions()
-                       {
-                           RespectBrowserAcceptHeader = respectBrowserAcceptHeader
-                       });
+            if (mvcOptions == null)
+            {
+                mvcOptions = new MvcOptions();
+            }
+
             httpContext.Setup(o => o.RequestServices.GetService(typeof(IOptions<MvcOptions>)))
-                       .Returns(options.Object);
+                       .Returns(new ObjectResultMvcOptions(mvcOptions));
 
             return new ActionContext(httpContext.Object, new RouteData(), new ActionDescriptor());
         }
@@ -777,6 +882,33 @@ namespace Microsoft.AspNet.Mvc.Core.Test.ActionResults
         public class Person
         {
             public string Name { get; set; }
+        }
+
+        private class ObjectResultMvcOptions : IOptions<MvcOptions>
+        {
+            private readonly MvcOptions _options;
+
+            public ObjectResultMvcOptions() : this(options: null)
+            {
+            }
+
+            public ObjectResultMvcOptions(MvcOptions options)
+            {
+                _options = options ?? new MvcOptions();
+            }
+
+            public MvcOptions Options
+            {
+                get
+                {
+                    return _options;
+                }
+            }
+
+            public MvcOptions GetNamedOptions(string name)
+            {
+                return _options;
+            }
         }
     }
 }
