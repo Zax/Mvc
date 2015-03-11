@@ -147,7 +147,13 @@ namespace Microsoft.AspNet.Mvc
         /// Gets or sets the flag to exclude formatters that match only on the object type.
         /// <c>false</c> by default.
         /// </summary>
-        public bool ExcludeMatchOnTypeOnly { get; set; }
+        /// <remarks>
+        /// When content-negotiation fails to find a formatter based on the request's 
+        /// headers(example: Accept, Content-Type etc.), it uses this flag to either send back a '406 Not Acceptable'
+        /// response or to find the first <see cref="IOutputFormatter"/> in the list of formatters which can 
+        /// write the object type.
+        /// </remarks>
+        public bool ExcludeFormatterMatchOnObjectTypeOnly { get; set; }
 
         /// <summary>
         /// Gets a Dictionary of CacheProfile Names, <see cref="CacheProfile"/> which are pre-defined settings for

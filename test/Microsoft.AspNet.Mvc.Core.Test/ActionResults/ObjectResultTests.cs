@@ -653,7 +653,7 @@ namespace Microsoft.AspNet.Mvc.Core.Test.ActionResults
         {
             // Arrange
             var mvcOptions = new MvcOptions();
-            mvcOptions.ExcludeMatchOnTypeOnly = true;
+            mvcOptions.ExcludeFormatterMatchOnObjectTypeOnly = true;
             var expectedData = "Hello World!";
             var objectResult = new ObjectResult(expectedData);
             var outputFormatters = new IOutputFormatter[] {
@@ -688,7 +688,7 @@ namespace Microsoft.AspNet.Mvc.Core.Test.ActionResults
         {
             // Arrange
             var mvcOptions = new MvcOptions();
-            mvcOptions.ExcludeMatchOnTypeOnly = true;
+            mvcOptions.ExcludeFormatterMatchOnObjectTypeOnly = true;
             var objectResult = new ObjectResult(new Person() { Name = "John" });
             var outputFormatters = new IOutputFormatter[] {
                 new HttpNoContentOutputFormatter(),
@@ -720,9 +720,9 @@ namespace Microsoft.AspNet.Mvc.Core.Test.ActionResults
         {
             // Arrange
             var mvcOptions = new MvcOptions();
-            mvcOptions.ExcludeMatchOnTypeOnly = true;
+            mvcOptions.ExcludeFormatterMatchOnObjectTypeOnly = true;
             var objectResult = new ObjectResult(new Person() { Name = "John" });
-            objectResult.ExcludeMatchOnTypeOnly = false;
+            objectResult.ExcludeFormatterMatchOnObjectTypeOnly = false;
             var outputFormatters = new IOutputFormatter[] {
                 new HttpNoContentOutputFormatter(),
                 new StringOutputFormatter(),
