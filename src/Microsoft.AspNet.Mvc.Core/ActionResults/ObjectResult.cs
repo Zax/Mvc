@@ -39,16 +39,9 @@ namespace Microsoft.AspNet.Mvc
         public int? StatusCode { get; set; }
 
         /// <summary>
-        /// Gets or sets the flag to exclude formatters that match only on the object type.
-        /// <c>false</c> by default.
+        /// Gets or sets a flag to enable content-negotiation to select a formatter based on object type.
         /// </summary>
-        /// <remarks>
-        /// When content-negotiation fails to find a formatter based on the request's 
-        /// headers(example: Accept, Content-Type etc.), it uses this flag to either send back a '406 Not Acceptable'
-        /// response or to find the first <see cref="IOutputFormatter"/> in the list of formatters which can 
-        /// write the object type.
-        /// </remarks>
-        public bool? ExcludeFormatterMatchOnObjectTypeOnly { get; set; }
+        public bool? EnableContentNegotiationToMatchOnObjectType { get; set; }
 
         public override async Task ExecuteResultAsync(ActionContext context)
         {
@@ -109,7 +102,7 @@ namespace Microsoft.AspNet.Mvc
             {
                 respectAcceptHeader = false;
             }
-            
+
             IEnumerable<MediaTypeHeaderValue> sortedAcceptHeaderMediaTypes = null;
             if (respectAcceptHeader)
             {
@@ -148,9 +141,9 @@ namespace Microsoft.AspNet.Mvc
 
                     // This would be the case when no formatter could write the type base on the
                     // accept headers and the request content type. Fallback on type based match.
-                    var excludeFormatterMatchOnObjectTypeOnly = 
-                        ExcludeFormatterMatchOnObjectTypeOnly ?? options.ExcludeFormatterMatchOnObjectTypeOnly;
-                    if (selectedFormatter == null && !excludeFormatterMatchOnObjectTypeOnly)
+                    var enableContentNegotiationToMatchOnObjectType =
+                        EnableContentNegotiationToMatchOnObjectType ?? options.EnableContentNegotiationToMatchOnObjectType;
+                    if (selectedFormatter == null && enableContentNegotiationToMatchOnObjectType)
                     {
                         foreach (var formatter in formatters)
                         {

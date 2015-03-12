@@ -648,12 +648,15 @@ namespace Microsoft.AspNet.Mvc.Core.Test.ActionResults
             Assert.Equal(expectedMessage, exception.Message);
         }
 
-        [Fact]
-        public async Task StringReturnType_Ignores_ExcludeMatchOnTypeOnly()
+        [Theory]
+        [InlineData(true)]
+        [InlineData(false)]
+        public async Task ObjectResult_WithStringType_WritesTextPlainFormat(
+            bool enableContentNegotiationToMatchOnObjectType)
         {
             // Arrange
             var mvcOptions = new MvcOptions();
-            mvcOptions.ExcludeFormatterMatchOnObjectTypeOnly = true;
+            mvcOptions.EnableContentNegotiationToMatchOnObjectType = enableContentNegotiationToMatchOnObjectType;
             var expectedData = "Hello World!";
             var objectResult = new ObjectResult(expectedData);
             var outputFormatters = new IOutputFormatter[] {
@@ -669,8 +672,7 @@ namespace Microsoft.AspNet.Mvc.Core.Test.ActionResults
             var actionContext = CreateMockActionContext(
                                     outputFormatters,
                                     response.Object,
-                                    requestAcceptHeader: "application/non-existing",
-                                    requestContentType: "application/non-existing",
+                                    requestAcceptHeader: "application/json",
                                     mvcOptions: mvcOptions);
 
             // Act
@@ -684,11 +686,11 @@ namespace Microsoft.AspNet.Mvc.Core.Test.ActionResults
         }
 
         [Fact]
-        public async Task ObjectResult_ExcludesMatchOnTypeOnly_BasedOnMvcOptions()
+        public async Task ObjectResult_DoesNot_MatchOnObjectType_BasedOnMvcOptions()
         {
             // Arrange
             var mvcOptions = new MvcOptions();
-            mvcOptions.ExcludeFormatterMatchOnObjectTypeOnly = true;
+            mvcOptions.EnableContentNegotiationToMatchOnObjectType = false;
             var objectResult = new ObjectResult(new Person() { Name = "John" });
             var outputFormatters = new IOutputFormatter[] {
                 new HttpNoContentOutputFormatter(),
@@ -716,13 +718,13 @@ namespace Microsoft.AspNet.Mvc.Core.Test.ActionResults
         }
 
         [Fact]
-        public async Task ObjectResult_OverridesMvcOptions_AndDoesNot_ExcludeMatchOnTypeOnly()
+        public async Task ObjectResult_OverridesMvcOptions_AndDoesNot_EnableMatchOnObjectType()
         {
             // Arrange
             var mvcOptions = new MvcOptions();
-            mvcOptions.ExcludeFormatterMatchOnObjectTypeOnly = true;
+            mvcOptions.EnableContentNegotiationToMatchOnObjectType = false;
             var objectResult = new ObjectResult(new Person() { Name = "John" });
-            objectResult.ExcludeFormatterMatchOnObjectTypeOnly = false;
+            objectResult.EnableContentNegotiationToMatchOnObjectType = true;
             var outputFormatters = new IOutputFormatter[] {
                 new HttpNoContentOutputFormatter(),
                 new StringOutputFormatter(),
@@ -746,7 +748,7 @@ namespace Microsoft.AspNet.Mvc.Core.Test.ActionResults
             response.VerifySet(r => r.ContentType = "application/json; charset=utf-8");
             responseStream.Position = 0;
             var actual = new StreamReader(responseStream).ReadToEnd();
-            Assert.Equal(expectedData, actual); 
+            Assert.Equal(expectedData, actual);
         }
 
         private static ActionContext CreateMockActionContext(
@@ -800,8 +802,11 @@ namespace Microsoft.AspNet.Mvc.Core.Test.ActionResults
                 mvcOptions = new MvcOptions();
             }
 
+            var mockOptions = new Mock<IOptions<MvcOptions>>();
+            mockOptions.SetupGet(o => o.Options).Returns(mvcOptions);
+
             httpContext.Setup(o => o.RequestServices.GetService(typeof(IOptions<MvcOptions>)))
-                       .Returns(new ObjectResultMvcOptions(mvcOptions));
+                       .Returns(mockOptions.Object);
 
             return new ActionContext(httpContext.Object, new RouteData(), new ActionDescriptor());
         }
@@ -882,33 +887,6 @@ namespace Microsoft.AspNet.Mvc.Core.Test.ActionResults
         public class Person
         {
             public string Name { get; set; }
-        }
-
-        private class ObjectResultMvcOptions : IOptions<MvcOptions>
-        {
-            private readonly MvcOptions _options;
-
-            public ObjectResultMvcOptions() : this(options: null)
-            {
-            }
-
-            public ObjectResultMvcOptions(MvcOptions options)
-            {
-                _options = options ?? new MvcOptions();
-            }
-
-            public MvcOptions Options
-            {
-                get
-                {
-                    return _options;
-                }
-            }
-
-            public MvcOptions GetNamedOptions(string name)
-            {
-                return _options;
-            }
         }
     }
 }
