@@ -20,15 +20,18 @@ namespace Microsoft.AspNet.Mvc
         private readonly IModelMetadataProvider _modelMetadataProvider;
         private readonly MvcOptions _options;
         private readonly IObjectModelValidator _validator;
+        private readonly ICompositeMetadataDetailsProvider _compositeDetailsProvider;
 
         public DefaultControllerActionArgumentBinder(
             IModelMetadataProvider modelMetadataProvider,
             IObjectModelValidator validator,
+            ICompositeMetadataDetailsProvider compositeDetailsProvider,
             IOptions<MvcOptions> optionsAccessor)
         {
             _modelMetadataProvider = modelMetadataProvider;
             _options = optionsAccessor.Options;
             _validator = validator;
+            _compositeDetailsProvider = compositeDetailsProvider;
         }
 
         public async Task<IDictionary<string, object>> GetActionArgumentsAsync(
@@ -46,15 +49,26 @@ namespace Microsoft.AspNet.Mvc
 
 
             var methodParameters = actionDescriptor.MethodInfo.GetParameters();
-            var parameterMetadata = new List<ModelMetadata>();
+            var parameterMetadata = new List<MetadataDTO>();
             foreach (var parameter in actionDescriptor.Parameters)
             {
                 var parameterInfo = methodParameters.Where(p => p.Name == parameter.Name).Single();
-                var metadata = _modelMetadataProvider.GetMetadataForParameter(
-                    parameterInfo,
-                    attributes: new object[] { parameter.BinderMetadata });
+                var metadata = _modelMetadataProvider.GetMetadataForType(parameterInfo.parameterType);
 
-                parameterMetadata.Add(metadata);
+                var allAttributes = new List<object>();
+                allAttributes.Add(parameter.BinderMetadata);
+                allAttributes.AddRange(parameterInfo.GetCustomAttributes());
+
+                new bindingMetadataProviderContext = new BindingMetadataProviderContext(
+                    ModelMetadataIdentity.ForParameter(parameterInfo),
+                    allAttributes);
+                _compositeDetailsProvider.GetBindingMetadata(bindingMetadataProviderContext);
+
+                var metadataDTO = new MetadataDTO() {
+                    ModelMetadata = metadata,
+                    BinderMetadata = bindingMetadataProviderContext.BindingMetadata
+                };
+                parameterMetadata.Add(metadataDTO);
             }
 
             var actionArguments = new Dictionary<string, object>(StringComparer.Ordinal);
@@ -66,7 +80,7 @@ namespace Microsoft.AspNet.Mvc
             ActionContext actionContext,
             ActionBindingContext bindingContext,
             IDictionary<string, object> arguments,
-            IEnumerable<ModelMetadata> parameterMetadata)
+            IEnumerable<MetadataDTO> parameterMetadata)
         {
             var operationBindingContext = new OperationBindingContext
             {
@@ -81,15 +95,18 @@ namespace Microsoft.AspNet.Mvc
             modelState.MaxAllowedErrors = _options.MaxModelValidationErrors;
             foreach (var parameter in parameterMetadata)
             {
-                var parameterType = parameter.ModelType;
+                var parameterType = parameter.ModelMetadata.ModelType;
 
                 var modelBindingContext = GetModelBindingContext(parameter, modelState, operationBindingContext);
                 var modelBindingResult = await bindingContext.ModelBinder.BindModelAsync(modelBindingContext);
                 if (modelBindingResult != null && modelBindingResult.IsModelSet)
                 {
-                    var modelExplorer = new ModelExplorer(_modelMetadataProvider, parameter, modelBindingResult.Model);
+                    var modelExplorer = new ModelExplorer(
+                        _modelMetadataProvider,
+                        parameter.ModelMetadata,
+                        modelBindingResult.Model);
 
-                    arguments[parameter.PropertyName] = modelBindingResult.Model;
+                    arguments[parameter.ModelMetadata.PropertyName] = modelBindingResult.Model;
                     var validationContext = new ModelValidationContext(
                         modelBindingResult.Key,
                         bindingContext.ValidatorProvider,
@@ -102,23 +119,28 @@ namespace Microsoft.AspNet.Mvc
 
         // Internal for tests
         internal static ModelBindingContext GetModelBindingContext(
-            ModelMetadata modelMetadata,
+            MetadataDTO metadataDTO,
+            BindingMetadata bindingMetadata,
             ModelStateDictionary modelState,
             OperationBindingContext operationBindingContext)
         {
-            var modelBindingContext = new ModelBindingContext
-            {
-                ModelName = modelMetadata.BinderModelName ?? modelMetadata.PropertyName,
-                ModelMetadata = modelMetadata,
-                ModelState = modelState,
+            var modelMetadata = metadataDTO.ModelMetadata;
+            var modelBindingContext = ModelBindingContext.GetModelBindingContext(
+                modelMetadata,
+                metadataDTO.BinderMetadata);
 
-                // Fallback only if there is no explicit model name set.
-                FallbackToEmptyPrefix = modelMetadata.BinderModelName == null,
-                ValueProvider = operationBindingContext.ValueProvider,
-                OperationBindingContext = operationBindingContext,
-            };
+            modelBindingContext.ModelState = modelState;
+            modelBindingContext.ValueProvider = operationBindingContext.ValueProvider;
+            modelBindingContext.OperationBindingContext = operationBindingContext;
 
             return modelBindingContext;
+        }
+
+        private class MetadataDTO
+        {
+            public ModelMetadata ModelMetadata { get; set; }
+
+            public BinderMetadata BinderMetadata { get; set; }
         }
     }
 }

@@ -52,14 +52,16 @@ namespace Microsoft.AspNet.Mvc.ModelBinding
 
         public static ModelBindingContext GetModelBindingContext(
             ModelMetadata metadata,
-            string binderModelName,
-            BindingSource bindingSource)
+            BindingMetadata bindingMetadata)
         {
+            var fallbackToEmptyPrefix = bindingMetadata.BinderModelName == null && metadata.BinderModelName == null;
+
             return new ModelBindingContext()
             {
                 ModelMetadata = metadata,
-                BindingSource = bindingSource,
-                BinderModelName = binderModelName ?? metadata.PropertyName,
+                BindingSource = bindingMetadata.BindingSource ?? modelMetadata.BindingSource,
+                BinderModelName = bindingMetadata.BinderModelName ?? metadata.BinderModelName ?? metadata.PropertyName,
+                FallbackToEmptyPrefix = fallbackToEmptyPrefix,
             };
         }
 
